@@ -23,6 +23,7 @@ class Player:
 
         self.coins = 0
         self.stocks = []
+        self.prestige = 0
 
         self.state = state
 
@@ -112,12 +113,18 @@ class Player:
         # TODO
         pass
 
+    def net_worth(self):
+        # TODO add sum of stock values
+        return self.coins
+
+    def leaderboard_value(self):
+        return self.net_worth() + 100000*self.prestige
 
     # UTILITIES
     async def send_status(self, ctx):
-        color = await author_color(ctx)
-        em = discord.Embed(color=color)
-        em.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar.url)
+        user = await self.get_user(ctx)
+        em = discord.Embed(color=user.accent_color)
+        em.set_author(name=user.display_name, icon_url=user.avatar.url)
         self.add_status_embed(em, ctx)
         await ctx.send(embed=em)
 
@@ -125,4 +132,5 @@ class Player:
         em.add_field(name="Tickets:", value=f"{self.get_tickets()} :tickets:", inline=True)
         em.add_field(name="Coins:", value=f"{self.get_coins()} {tornago(ctx)}", inline=True)
 
-
+    async def get_user(self, ctx):
+        return await ctx.bot.fetch_user(self.userid)

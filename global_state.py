@@ -27,4 +27,4 @@ class State:
         self.save()
 
     def get_players(self):
-        self.players
+        return self.players

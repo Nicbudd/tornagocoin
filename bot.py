@@ -33,12 +33,33 @@ async def bal(ctx):
     await p.send_status(ctx)
 
 @bot.hybrid_command()
+async def leaderboard(ctx):
+    tor = tornago(ctx)
+
+    players = state.get_players().values()
+    players = sorted(players, key=lambda x: x.net_worth(), reverse=True)
+
+    s = ""
+    for p in players:
+        user = await ctx.bot.fetch_user(p.userid)
+        s += f"{p.net_worth()} ({p.get_coins()} {tor}) - {user.name}\n"
+
+    em = discord.Embed(title="**Leaderboard** (by net worth)", description=s)
+
+    await ctx.send(embed=em)
+    # em = discord.Embed()
+    # e.set_author(name="Leaderboard")
+
+
+
+
+
+@bot.hybrid_command()
 async def buy_tickets(ctx, count: int):
     p = await player.get(state, ctx)
     for i in range(count):
         p.buy_ticket()
     await p.send_status(ctx)
-
 
 @bot.hybrid_command()
 async def play(ctx, game):
@@ -81,7 +102,7 @@ def is_admin():
 @bot.hybrid_command()
 @is_admin()
 async def tickets(ctx, action: str, amount: int, user: discord.User):
-    p = await player.get(state, ctx)
+    p = await player.get_id(state, user.id, ctx)
 
     p.refresh_tickets()
     
@@ -105,7 +126,7 @@ async def tickets(ctx, action: str, amount: int, user: discord.User):
 @bot.hybrid_command()
 @is_admin()
 async def coins(ctx, action: str, amount: int, user: discord.User):
-    p = await player.get(state, ctx)
+    p = await player.get_id(state, user.id, ctx)
     
     action = action.lower()
     if action == "set":

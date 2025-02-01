@@ -45,8 +45,8 @@ async def confirm_result(result, player, ctx, paid):
 
 
     # embed
-    color = await author_color(ctx)
-    em = discord.Embed(color=color)
+    user = await player.get_user(ctx)
+    em = discord.Embed(color=user.accent_color)
     em.set_author(name=result["name"])
     em.description = f"*{result['description']}*"
     
