@@ -33,6 +33,14 @@ async def bal(ctx):
     await p.send_status(ctx)
 
 @bot.hybrid_command()
+async def buy_tickets(ctx, count: int):
+    p = await player.get(state, ctx)
+    for i in range(count):
+        p.buy_ticket()
+    await p.send_status(ctx)
+
+
+@bot.hybrid_command()
 async def play(ctx, game):
     p = await player.get(state, ctx)
     await games.play(game, p, ctx)
@@ -97,6 +105,14 @@ async def coins(ctx, action: str, amount: int, user: discord.User):
     else:
         await ctx.send(f"Unknown command `{action}`")
 
+
+@bot.hybrid_command()
+@is_admin()
+async def delete_user(ctx, user: discord.User):
+    p = state.players.pop(user.id, None)
+    if p != None:
+        del p
+    await ctx.send(f"Deleted {user.name}")
 
 # run client -------------------------------------------------------------------
 
