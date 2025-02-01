@@ -1,9 +1,11 @@
 from common import *
 import random
 import discord
+import player as pl
 
+async def play(game_name, state, ctx, testplay=False):
+    player = await pl.get(state, ctx)
 
-async def play(game_name, player, ctx, testplay=False):
     game_name = game_name.lower()
     result = get_result(game_name)
 
@@ -224,7 +226,7 @@ def states_game():
         coins = 200,
     elif state == "Ohio":
         text = "Looks like you're going to the shadow realm, Jimbo"
-        coins = -900
+        coins = -950
     else:
         text = ""
         coins = 25

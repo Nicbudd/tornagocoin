@@ -42,14 +42,32 @@ async def buy_tickets(ctx, count: int):
 
 @bot.hybrid_command()
 async def play(ctx, game):
-    p = await player.get(state, ctx)
-    await games.play(game, p, ctx)
+    await games.play(game, state, ctx)
 
 @bot.hybrid_command()
 async def testplay(ctx, game):
-    p = await player.get(state, ctx)
-    await games.play(game, p, ctx, testplay=True)
+    await games.play(game, state, ctx, testplay=True)
 
+
+@bot.hybrid_command()
+async def d6(ctx):
+    await games.play("d6", state, ctx)
+
+@bot.hybrid_command()
+async def d20(ctx):
+    await games.play("d20", state, ctx)
+
+@bot.hybrid_command()
+async def lotto(ctx):
+    await games.play("lotto", state, ctx)
+
+@bot.hybrid_command()
+async def lottox(ctx):
+    await games.play("lottox", state, ctx)
+
+@bot.hybrid_command()
+async def states(ctx):
+    await games.play("states", state, ctx)
 
 
 # admin commands ---------------------------------------------------------------
