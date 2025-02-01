@@ -2,7 +2,7 @@ import player, games, global_state
 from common import *
 import re
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 
 # set up client ----------------------------------------------------------------
@@ -56,6 +56,8 @@ def is_admin():
 @is_admin()
 async def tickets(ctx, action: str, amount: int, user: discord.User):
     p = await player.get(state, ctx)
+
+    p.refresh_tickets()
     
     action = action.lower()
     if action == "set":
@@ -94,8 +96,6 @@ async def coins(ctx, action: str, amount: int, user: discord.User):
         p.save()
     else:
         await ctx.send(f"Unknown command `{action}`")
-
-
 
 
 # run client -------------------------------------------------------------------

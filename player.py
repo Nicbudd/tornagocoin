@@ -1,4 +1,5 @@
 import json
+import datetime as dt
 from common import *
 
 async def get(state, ctx):
@@ -16,9 +17,13 @@ async def get_id(state, userid, ctx):
 class Player:
     def __init__(self, userid, state):
         self.userid = userid
-        self.tickets = 10
+
+        self.tickets = 20
+        self.last_checked = dt.datetime(2000, 1, 1)
+
         self.coins = 0
         self.stocks = []
+
         self.state = state
 
         state.add_player(userid, self)
@@ -29,12 +34,17 @@ class Player:
     async def color(self, ctx):
         color(ctx)
 
+    # BALANCE
+
+
     # TICKETS
 
     def get_tickets(self):
+        self.refresh_tickets()
         return self.tickets
 
     def use_tickets(self, count):
+        self.refresh_tickets()
         if self.tickets >= count:
             self.tickets -= count
             return True
@@ -42,12 +52,26 @@ class Player:
             return False
 
     def buy_ticket(self):
+        self.refresh_tickets()
         if self.pay_coins(20):
             self.tickets += 1
             return True
         else:
             return False
 
+    def refresh_tickets(self):
+        # if not hasattr(self, "last_checked"):
+        #     self.last_checked = dt.datetime(2000, 1, 1)
+
+        if self.last_checked.date() != dt.date.today():
+            self.daily_tickets_update()
+            self.save()
+        
+        self.last_checked = dt.datetime.now()
+
+    def daily_tickets_update(self):
+        if self.tickets < 10:
+            self.tickets = 10
 
     # COINS
 
@@ -60,6 +84,7 @@ class Player:
 
     # losing in a game doesn't kill your balance entirely
     def lose_coins(self, count):
+        count = abs(count)
         if self.coins >= 0:
             if self.coins >= count:
                 self.coins -= int(count)
