@@ -1,5 +1,6 @@
 import pickle
 import os
+import barobets
 
 def load(): 
     if not os.path.isfile("data/state.pickle"):
@@ -14,6 +15,7 @@ def load():
 class State:
     def __init__(self):
         self.players = {}
+        self.barobets = []
 
     def save(self):
         with open("data/state.pickle", "wb") as fp:
@@ -28,3 +30,12 @@ class State:
 
     def get_players(self):
         return self.players
+
+
+    def add_barobet(self, barobet):
+        self.barobets.append(barobet)
+        self.save()
+        return len(self.barobets) - 1
+
+    def get_barobet(self, id=-1):
+        self.barobets[id]
