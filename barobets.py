@@ -1,10 +1,11 @@
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 from common import *
 
-async def new_game(self, cyclone_dt, state, ctx, close_dt=None):
+async def new_game(cyclone_dt, state, ctx, close_dt=None):
     g = Game(cyclone_dt, state, ctx, close_dt)
-    await ctx.send(f"<@&{GAMER_ROLE}> Guessing open for cyclone on {g.cyclone_dt_str()} now live. This is game #{g.game_id}")
+    await ctx.send(f"<@&{GAMER_ROLE}> Guessing for cyclone on **{g.cyclone_dt_str()}** now open.\nGuessing closes **{g.close_dt_str()}**\n*Game #{g.game_id}*.")
     return g
 
 class Game():
@@ -15,6 +16,7 @@ class Game():
         else:
             self.close_dt = close_dt
 
+        self.cyclone_dt = cyclone_dt
         self.guesses = {}
         self.actual = None
         self.state = state
@@ -23,22 +25,28 @@ class Game():
         game_id = state.add_barobet(self)
         self.game_id = game_id
 
-    def save():
+        self.save()
+
+    def save(self):
         self.state.save()
 
-    def close_dt_str():
-        return self.close_dt.strftime("%a %b %d @ %H:%M %Z")
+    def close_dt_str(self):
+        d = self.close_dt
+        eastern = d.astimezone(ZoneInfo("America/New_York"))
+        return f"{d.strftime('%a, %b %d @ %HZ')} ({eastern.strftime('%a @ %I %p %Z')})"
 
-    def cyclone_dt_str():
-        return self.cyclone_dt.strftime("%a %b %d @ %H:%M %Z")
+    def cyclone_dt_str(self):
+        d = self.cyclone_dt
+        eastern = d.astimezone(ZoneInfo("America/New_York"))
+        return f"{d.strftime('%a, %b %d @ %HZ')} ({eastern.strftime('%a @ %I %p %Z')})"
 
     async def guess(self, player, pressure, ctx, do_bet=True):
 
-        tornago = tornago(ctx)
+        tor = tornago(ctx)
 
         userid = player.userid
 
-        now = dt.datetime.utcnow()
+        now = dt.datetime.now(dt.timezone.utc)
         if now > self.close_dt:
             # don't allow late guesses
             await ctx.send(f"Guessing closed at `{self.close_dt_str()}`")
@@ -50,27 +58,27 @@ class Game():
 
         elif not player.pay_coins(100) and do_bet:
             # require to pay 100 coins to play, but only if the player chooses to do a bet.
-            await ctx.send(f"Not enough coins to play. Costs 100 {tornago}, you are currently at {player.get_coins()} {tornago}.\n You can either earn coins with games in #bot-spam, or add `nobet` after your $lockitin command (and miss out on rewards).")
+            await ctx.send(f"Not enough coins to play. Costs 100 {tor}, you are currently at {player.get_coins()} {tornago}.\n You can either earn coins with games in #bot-spam, or add `nobet` after your $lockitin command (and miss out on rewards).")
         
         else:
 
             # warn user of unusual guess
             if pressure < 960:
-                await ctx.send(f"Are you sure? `{pressure:.1}` seems low.")
+                await ctx.send(f"Are you sure? `{pressure:.1f}` seems low.")
             elif pressure > 1040:
-                await ctx.send(f"Are you sure? `{pressure:.1}` seems high.")
+                await ctx.send(f"Are you sure? `{pressure:.1f}` seems high.")
             
             # set the guess
-            guesses[userid] = {"value": pressure, "userid": userid, "do_bet": do_bet, "error": None}
+            self.guesses[userid] = {"value": pressure, "userid": userid, "do_bet": do_bet, "error": None}
             self.save()
 
-            await ctx.send(f"Confirming `{pressure:.1}` for `{ctx.author.mention}` for game {self.game_num}.")
+            await ctx.send(f"Confirming `{pressure:.1f}` for {ctx.author.mention} for game #{self.game_id}.")
 
     def average(self):
         vals = self.guesses.values()
 
-        if vals.count > 0:
-            return sum(vals) / vals.count
+        if len(vals) > 0:
+            return sum([x["value"] for x in vals]) / len(vals)
         else:
             return None
 
@@ -160,12 +168,13 @@ class Game():
         title = ""
 
         if self.actual == None:
-            title = f"Current guesses for game {self.game_id} (average: {self.average():.1f})"
+            title = f"Current guesses for game #{self.game_id}"
+            s += f"**Average - {self.average():.1f}**\n"
             # sort highest to lowest
             guesses = sorted(self.guesses.values(), key=lambda x: x["value"])
             for g in guesses:
                 user = await ctx.bot.fetch_user(g["userid"])
-                s += f"{g["value"]:.1f} - {user.name}\n"
+                s += f"{g['value']:.1f} - {user.name}\n"
 
         else:
             current_final = "Final" if self.finished else "Current"
@@ -175,8 +184,8 @@ class Game():
             guesses = sorted(self.guesses.values(), key=lambda x: abs(x["error"]))
             for g in guesses:
                 user = await ctx.bot.fetch_user(g["userid"])
-                s += f"{g["value"]:.1f} ({g["error"]:.1f}) - {user.name}\n"
+                s += f"{g['value']:.1f} ({g['error']:.1f}) - {user.name}\n"
 
         em = discord.Embed(title=title, description=s)
-        
+        await ctx.send(embed=em)
 

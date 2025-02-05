@@ -1,7 +1,9 @@
-import player, games, global_state
+import player, games, global_state, barobets
 from common import *
+
 import datetime as dt
 import re
+
 import discord
 from discord.ext import commands, tasks
 import typing
@@ -22,6 +24,10 @@ async def on_ready():
 async def globally_block_dms(ctx):
     return (ctx.guild is not None) or is_admin()
 
+def is_admin():
+    async def predicate(ctx):
+        return ctx.author.id == ADMIN
+    return commands.check(predicate)
 
 # commands ---------------------------------------------------------------------
 
@@ -96,14 +102,14 @@ async def states(ctx):
 @bot.hybrid_command()
 async def lockitin(ctx, pressure: float, id=-1, no_bet=""):
     do_bet = no_bet.lower() not in ["no_bet", "no bet", "nobet"]
-    bet = state.get_barobet(id)
-    player = state.get_player(ctx.author.id)
-    bet.guess(player, pressure, ctx, do_bet=do_bet)
+    pl = await player.get(state, ctx)
+    bb = state.get_barobet(id)
+    await bb.guess(pl, pressure, ctx, do_bet=do_bet)
 
-@bot.hybrid_command()
+@bot.hybrid_command(name="baroboard")
 async def barobet_board(ctx, id=-1):
     bb = state.get_barobet(id)
-    bb.send_guess_board(ctx)
+    await bb.send_guess_board(ctx)
 
 @bot.hybrid_command(name="bbnew")
 @is_admin()
@@ -117,7 +123,7 @@ async def barobet_new(ctx, day, hour_utc: int, close_date=None, close_hour=None)
     if close_date == None or close_hour == None:
         close_dt = None
     else:
-        close_dt = parse_day_hour(close_date, close_hour)
+        close_dt = parse_day_hour(close_date, int(close_hour))
         if close_dt == None:
             await ctx.send(f"Could not parse close time `{day}`, `{hour_utc}`.")
             return
@@ -127,47 +133,58 @@ async def barobet_new(ctx, day, hour_utc: int, close_date=None, close_hour=None)
 @bot.hybrid_command(name="bbdel")
 @is_admin()
 async def barobet_delete(ctx, id=-1):
-    bb = state.get_barobet(id=game_num)
-    del bb
+    bb = state.del_barobet(id=id)
     await ctx.send(f"Deleted game {id}")
 
 @bot.hybrid_command(name="bbobs")
 @is_admin()
 async def barobet_observe(ctx, pressure: float, id=-1):
     bb = state.get_barobet(id)
-    bb.observe_pressure(pressure)
+    await bb.observe_pressure(pressure)
 
 @bot.hybrid_command(name="bbfinish")
 @is_admin()
 async def barobet_finish(ctx, id=-1):
     bb = state.get_barobet(id)
-    bb.send_rewards(ctx)
+    await bb.send_rewards(ctx)
 
 
 
 def parse_day_hour(day, hour):
 
-    now = dt.datetime.now()
+    now = dt.datetime.utcnow()
 
+    # example from below
     dates = {
-        "sun": 0, 
-        "mon": 1, 
-        "tue": 2, 
-        "wed": 3, 
-        "thu": 4, 
-        "fri": 5, 
-        "sat": 6
+        "sun": 0, # sun: -2 => 5
+        "mon": 1, # mon: -1 => 6
+        "tue": 2, # tue: 0
+        "wed": 3, # wed: 1
+        "thu": 4, # thu: 2
+        "fri": 5, # fri: 3
+        "sat": 6  # sat: 4
     }
 
     if day.lower() in dates.keys():
-        return dt.datetime(now.year, now.month, dates[now.day], hour=hour_utc)
+        # this is hard for me to think about so I'm gonna use an example
+        # let's say it's tuesday the 20th today
+        now_wkday = (now.weekday() + 1) % 7 # this becomes 2 (python uses monday = 0 so we add 1)
+        this_offset = (dates[day] - now_wkday) % 7 # this rotates the calendar so that 0 is on this day (see above).
+        day = now.day + this_offset # this adds the offset to today's day
+        # sun => 20 + 5 = 25
+        # mon => 20 + 6 = 26
+        # tue => 20 + 0 = 20
+        # wed => 20 + 1 = 21
+        # ....
+        print(day)
+        return dt.datetime(now.year, now.month, day, hour=hour, tzinfo=dt.timezone.utc)
     else:
         try:
             day_int = int(day)
         except:
             return None
         else:
-            return dt.datetime(now.year, now.month, day_int, hour=hour_utc)
+            return dt.datetime(now.year, now.month, day_int, hour=hour, tzinfo=dt.timezone.utc)
 
 
 
@@ -229,10 +246,6 @@ async def delete_user(ctx, user: discord.User):
     await ctx.send(f"Deleted {user.name}")
 
 
-def is_admin():
-    async def predicate(ctx):
-        return ctx.author.id == ADMIN
-    return commands.check(predicate)
 
 # run client -------------------------------------------------------------------
 

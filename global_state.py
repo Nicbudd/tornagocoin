@@ -9,7 +9,12 @@ def load():
         s.save()
 
     with open("data/state.pickle", "rb") as fp:
-        return pickle.load(fp)
+        s = pickle.load(fp)
+
+        if not hasattr(s, "barobets"):
+            s.barobets = []
+
+        return s
 
 
 class State:
@@ -31,11 +36,13 @@ class State:
     def get_players(self):
         return self.players
 
-
     def add_barobet(self, barobet):
         self.barobets.append(barobet)
         self.save()
         return len(self.barobets) - 1
 
     def get_barobet(self, id=-1):
-        self.barobets[id]
+        return self.barobets[id]
+
+    def del_barobet(self, id=-1):
+        self.barobets[id] = None
