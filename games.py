@@ -1,37 +1,54 @@
-from common import *
+"""Allows the user to play games with their tickets to earn coins.
+These are largely luck based."""
+
+from typing import Optional, Union
 import random
 import discord
-import player as pl
+from discord.ext.commands import Context
 
-async def play(game_name, state, ctx, testplay=False):
+from player import Player
+import player as pl
+from global_state import State
+import common as com
+
+# ruff: noqa: PLR2004
+
+async def play(game_name: str, state: State, ctx: Context, testplay: bool = False):
+    """Lets the author of the message play the specified game."""
     player = await pl.get(state, ctx)
 
     game_name = game_name.lower()
     result = get_result(game_name)
 
-    if result == None:
-        ctx.send(f"Unknown game `{game_name}`")
+    if result is None:
+        await ctx.send(f"Unknown game `{game_name}`")
     else:
 
         if testplay:
             paid = False
         else:
-            paid = await collect_tickets(result["cost"], player, ctx)
+            cost = int(result["cost"])
+            paid = await collect_tickets(cost, player, ctx)
 
         if paid or testplay:
             await confirm_result(result, player, ctx, paid)
 
 
-async def collect_tickets(ticket_cost, player, ctx):
+async def collect_tickets(ticket_cost: int, player: Player, ctx: Context):
+    """Collects tickets from the user, otherwise tells the user that they're out of tickets"""
     if player.use_tickets(ticket_cost):
         return True
     else:
-        await ctx.send(f"Not enough :tickets: to play. This game requires {ticket_cost} :tickets: to play, you have {player.get_tickets()}.\nRun the command `testplay` to see what to expect from the game.")
+        await ctx.send(f"Not enough :tickets: to play. This game requires {ticket_cost} :tickets: "
+        f"to play, you have {player.get_tickets()}.\nRun the command `testplay` to see what to "
+        f"expect from the game.")
         return False
 
 
-async def confirm_result(result, player, ctx, paid):
-    coins = result["coins"]
+async def confirm_result(result: dict[str, Union[int, str]], player: Player,
+ctx: Context, paid: bool):
+    """Sends a message to discord to confirm the results of the game."""
+    coins: int = int(result["coins"])
 
     if paid:
         # adjust the player's balance
@@ -39,33 +56,32 @@ async def confirm_result(result, player, ctx, paid):
             player.lose_coins(coins)
         else:
             player.add_coins(coins)
-
         # save state
         player.save()
-
 
     # embed
     user = await player.get_user(ctx)
     em = discord.Embed(color=user.accent_color)
     em.set_author(name=result["name"])
     em.description = f"*{result['description']}*"
-    
-    text = result["text"]
+
+    text: str = str(result["text"])
     if coins < 0:
-        text += f"\n(Lost {coins} {tornago(ctx)})"
+        text += f"\n(Lost {coins} {com.tornago(ctx)})"
     else:
-        text += f"\n(Won {coins} {tornago(ctx)})"
-    
+        text += f"\n(Won {coins} {com.tornago(ctx)})"
+
     em.add_field(name=result["outcome"], value=text, inline=False)
     if paid:
         # em.add_field(name=ctx.author.display_name, value="", inline=False)
         player.add_status_embed(em, ctx)
-    
+
 
     await ctx.send(embed=em)
 
 
-def get_result(game):
+def get_result(game: str) -> Optional[dict[str, Union[int, str]]]:
+    """Returns the amount of coins won from each game."""
 
     if "lazy" in game or "eight" in game or game in ["l8", "8"]:
         return lazy_eights()
@@ -75,7 +91,8 @@ def get_result(game):
         return d20()
     elif game in ["lotto", "lottery"]:
         return lotto()
-    elif game in ["lotto_x", "lotto_ex", "lotto_extreme", "lotto_xtreme", "lottox", "lottoex", "lottoextreme", "lottoxtreme"]:
+    elif game in ["lotto_x", "lotto_ex", "lotto_extreme", "lotto_xtreme", "lottox", "lottoex",
+    "lottoextreme", "lottoxtreme"]:
         return lotto_xtreme()
     elif game in ["state", "states", "ohio", "oh"]:
         return states_game()
@@ -87,8 +104,7 @@ def get_result(game):
 
 # games ------------------------------------------------------------------------
 
-def lazy_eights():
-    
+def lazy_eights(): # pylint: disable=C0116
     result = {
         "name": "Lazy Eights",
         "description": "Oh, so you're boring?",
@@ -101,7 +117,7 @@ def lazy_eights():
     return result
 
 
-def d6():
+def d6(): # pylint: disable=C0116
 
     roll = random.randint(1, 6)
 
@@ -121,19 +137,19 @@ def d6():
     return result
 
 
-def d20():
+def d20(): # pylint: disable=C0116
 
     roll = random.randint(1, 20)
 
     outcome = f"Roll: {roll}"
-    
+
     if roll == 20:
         text = "NATURAL 20!"
         coins = 200
     else:
         text = ""
         coins = 0
-    
+
     result = {
         "name": "d20",
         "description": "C'mon, nat 20...",
@@ -146,7 +162,7 @@ def d20():
     return result
 
 
-def lotto():
+def lotto(): # pylint: disable=C0116
 
     roll = random.randint(1, 1000)
 
@@ -176,7 +192,7 @@ def lotto():
 
 
 
-def lotto_xtreme():
+def lotto_xtreme(): # pylint: disable=C0116
 
     roll = random.randint(1, 10000)
 
@@ -213,9 +229,15 @@ def lotto_xtreme():
     return result
 
 
-states = ["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"]
+states = ["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware",
+"Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana",
+"Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana",
+"Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina",
+"North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina",
+"South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia",
+"Wisconsin","Wyoming"]
 
-def states_game():
+def states_game(): # pylint: disable=C0116
 
     state = states[random.randint(0, 49)]
 
@@ -241,5 +263,3 @@ def states_game():
     }
 
     return result
-
-

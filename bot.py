@@ -1,13 +1,19 @@
-import player, games, global_state, barobets
-from common import *
+"""
+Discord bot implementing Tornago Coin game.
+"""
+# pylint: disable=missing-function-docstring
 
 import datetime as dt
-import re
-
+import time
 import discord
-from discord.ext import commands, tasks
-import typing
+from discord.ext import commands# , tasks
 
+import player
+import games
+import global_state
+import barobets
+
+import common as com
 
 # set up client ----------------------------------------------------------------
 
@@ -26,7 +32,7 @@ async def globally_block_dms(ctx):
 
 def is_admin():
     async def predicate(ctx):
-        return ctx.author.id == ADMIN
+        return ctx.author.id == com.ADMIN
     return commands.check(predicate)
 
 # commands ---------------------------------------------------------------------
@@ -42,7 +48,7 @@ async def bal(ctx):
 
 @bot.hybrid_command()
 async def leaderboard(ctx):
-    tor = tornago(ctx)
+    tor = com.tornago(ctx)
 
     players = state.get_players().values()
     players = sorted(players, key=lambda x: x.net_worth(), reverse=True)
@@ -58,18 +64,18 @@ async def leaderboard(ctx):
 
 
 
-@bot.hybrid_command()
-async def buy_tickets(ctx, count: int):
+@bot.hybrid_command() # type: ignore
+async def buy_tickets(ctx, count: int): # [missing-function-docstring]
     p = await player.get(state, ctx)
-    for i in range(count):
+    for _i in range(count):
         p.buy_ticket()
     await p.send_status(ctx)
 
-@bot.hybrid_command()
+@bot.hybrid_command() # type: ignore
 async def play(ctx, game):
     await games.play(game, state, ctx)
 
-@bot.hybrid_command()
+@bot.hybrid_command() # type: ignore
 async def testplay(ctx, game):
     await games.play(game, state, ctx, testplay=True)
 
@@ -99,16 +105,24 @@ async def states(ctx):
 
 
 
-@bot.hybrid_command()
-async def lockitin(ctx, pressure: float, id=-1, no_bet=""):
+@bot.hybrid_command() # type: ignore
+async def lockitin(ctx, pressure: float, game_id=-1, no_bet=""):
     do_bet = no_bet.lower() not in ["no_bet", "no bet", "nobet"]
     pl = await player.get(state, ctx)
-    bb = state.get_barobet(id)
+    bb = state.get_barobet(game_id)
     await bb.guess(pl, pressure, ctx, do_bet=do_bet)
 
-@bot.hybrid_command(name="baroboard")
-async def barobet_board(ctx, id=-1):
-    bb = state.get_barobet(id)
+@bot.hybrid_command()
+@is_admin()
+async def barobet_guess_other(ctx, pressure: float, gamer_id, game_id=-1, no_bet=""):
+    do_bet = no_bet.lower() not in ["no_bet", "no bet", "nobet"]
+    pl = await player.get_id(state, gamer_id, ctx)
+    bb = state.get_barobet(game_id)
+    await bb.guess(pl, pressure, ctx, do_bet=do_bet)
+
+@bot.hybrid_command(name="baroboard") # type: ignore
+async def barobet_board(ctx, game_id=-1):
+    bb = state.get_barobet(game_id)
     await bb.send_guess_board(ctx)
 
 @bot.hybrid_command(name="bbnew")
@@ -116,15 +130,15 @@ async def barobet_board(ctx, id=-1):
 async def barobet_new(ctx, day, hour_utc: int, close_date=None, close_hour=None):
 
     cyclone_dt = parse_day_hour(day, hour_utc)
-    if cyclone_dt == None:
+    if cyclone_dt is None:
         await ctx.send(f"Could not parse cyclone time `{day}`, `{hour_utc}`.")
         return
 
-    if close_date == None or close_hour == None:
+    if close_date is None or close_hour is None:
         close_dt = None
     else:
         close_dt = parse_day_hour(close_date, int(close_hour))
-        if close_dt == None:
+        if close_dt is None:
             await ctx.send(f"Could not parse close time `{day}`, `{hour_utc}`.")
             return
 
@@ -132,20 +146,27 @@ async def barobet_new(ctx, day, hour_utc: int, close_date=None, close_hour=None)
 
 @bot.hybrid_command(name="bbdel")
 @is_admin()
-async def barobet_delete(ctx, id=-1):
-    bb = state.del_barobet(id=id)
-    await ctx.send(f"Deleted game {id}")
+async def barobet_delete(ctx, game_id=-1):
+    state.del_barobet(game_id=game_id)
+    await ctx.send(f"Deleted game {game_id}")
 
 @bot.hybrid_command(name="bbobs")
 @is_admin()
-async def barobet_observe(ctx, pressure: float, id=-1):
-    bb = state.get_barobet(id)
-    await bb.observe_pressure(pressure)
+async def barobet_observe(ctx, pressure: float, game_id=-1):
+    bb = state.get_barobet(game_id)
+    await bb.observe_pressure(pressure, ctx)
+
+@bot.hybrid_command(name="bbclose")
+@is_admin()
+async def barobet_close(ctx, game_id=-1):
+    bb = state.get_barobet(game_id)
+    bb.close()
+    await ctx.send(f"Closed game {bb.game_id}")
 
 @bot.hybrid_command(name="bbfinish")
 @is_admin()
-async def barobet_finish(ctx, id=-1):
-    bb = state.get_barobet(id)
+async def barobet_finish(ctx, game_id=-1):
+    bb = state.get_barobet(game_id)
     await bb.send_rewards(ctx)
 
 
@@ -165,23 +186,24 @@ def parse_day_hour(day, hour):
         "sat": 6  # sat: 4
     }
 
-    if day.lower() in dates.keys():
+    if day.lower() in dates:
         # this is hard for me to think about so I'm gonna use an example
         # let's say it's tuesday the 20th today
         now_wkday = (now.weekday() + 1) % 7 # this becomes 2 (python uses monday = 0 so we add 1)
-        this_offset = (dates[day] - now_wkday) % 7 # this rotates the calendar so that 0 is on this day (see above).
+        this_offset = (dates[day] - now_wkday) % 7 # this rotates the calendar
+        # so that 0 is on this day (see above).
+
         day = now.day + this_offset # this adds the offset to today's day
         # sun => 20 + 5 = 25
         # mon => 20 + 6 = 26
         # tue => 20 + 0 = 20
         # wed => 20 + 1 = 21
         # ....
-        print(day)
         return dt.datetime(now.year, now.month, day, hour=hour, tzinfo=dt.timezone.utc)
     else:
         try:
             day_int = int(day)
-        except:
+        except TypeError:
             return None
         else:
             return dt.datetime(now.year, now.month, day_int, hour=hour, tzinfo=dt.timezone.utc)
@@ -197,7 +219,7 @@ async def tickets(ctx, action: str, amount: int, user: discord.User):
     p = await player.get_id(state, user.id, ctx)
 
     p.refresh_tickets()
-    
+
     action = action.lower()
     if action == "set":
         p.tickets = amount
@@ -219,7 +241,7 @@ async def tickets(ctx, action: str, amount: int, user: discord.User):
 @is_admin()
 async def coins(ctx, action: str, amount: int, user: discord.User):
     p = await player.get_id(state, user.id, ctx)
-    
+
     action = action.lower()
     if action == "set":
         p.coins = amount
@@ -240,19 +262,24 @@ async def coins(ctx, action: str, amount: int, user: discord.User):
 @bot.hybrid_command()
 @is_admin()
 async def delete_user(ctx, user: discord.User):
-    p = state.players.pop(user.id, None)
-    if p != None:
-        del p
-    await ctx.send(f"Deleted {user.name}")
 
+    if state.del_user(user.id):
+        await ctx.send(f"Deleted {user.name}")
+    else:
+        await ctx.send(f"Couldn't find user {user.name}.")
 
 
 # run client -------------------------------------------------------------------
 
 state = global_state.load()
 
-with open("data/discord_token.config") as fp:
+with open("data/discord_token.config", "r", encoding="utf-8") as fp:
     token = fp.read()
 token = token.strip()
 
-bot.run(token)
+while True:
+    try:
+        bot.run(token)
+    except Exception as e: # pylint: disable=broad-exception-caught
+        print(f"Exception {e}. Restarting in 5.")
+        time.sleep(5)
